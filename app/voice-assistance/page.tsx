@@ -19,12 +19,41 @@ const VoiceAssistantPage = () => {
   const [reply, setReply] = useState("");
   const recognitionRef = useRef<any>(null);
 
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceName, setSelectedVoiceName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadVoices = () => {
+      const v = window.speechSynthesis.getVoices();
+      setVoices(v);
+
+
+      if (!selectedVoiceName && v.length) {
+        const byLang = v.find((vv) => vv.lang === "en-IN");
+        const byNameIndia = v.find((vv) => vv.name.toLowerCase().includes("india"));
+        const byGoogle = v.find((vv) => vv.name.toLowerCase().includes("google") && vv.lang.startsWith("en"));
+        const byEn = v.find((vv) => vv.lang.startsWith("en"));
+        const pick = byLang || byNameIndia || byGoogle || byEn || v[0];
+        if (pick) setSelectedVoiceName(pick.name);
+      }
+    };
+
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, [selectedVoiceName]);
+
 
   useEffect(() => {
     const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Rec) { setSupported(false); return; }
+    if (!Rec) {
+      setSupported(false);
+      return;
+    }
     const recog = new Rec();
-    recog.lang = "en-US";
+    recog.lang = "en-IN"; 
     recog.continuous = false;
     recog.interimResults = false;
 
@@ -39,14 +68,20 @@ const VoiceAssistantPage = () => {
 
 
   const stopAll = useCallback(() => {
-    try { recognitionRef.current?.stop(); } catch {}
-    try { window.speechSynthesis.cancel(); } catch {}
+    try {
+      recognitionRef.current?.stop();
+    } catch {}
+    try {
+      window.speechSynthesis.cancel();
+    } catch {}
     setListening(false);
   }, []);
 
-
+ 
   useEffect(() => {
-    const onVisibility = () => { if (document.hidden) stopAll(); };
+    const onVisibility = () => {
+      if (document.hidden) stopAll();
+    };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", stopAll);
     window.addEventListener("beforeunload", stopAll);
@@ -58,14 +93,37 @@ const VoiceAssistantPage = () => {
     };
   }, [stopAll]);
 
-  const speak = useCallback((text: string) => {
-    try {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1; u.pitch = 1;
-      window.speechSynthesis.speak(u);
-    } catch {}
-  }, []);
+  
+  const speak = useCallback(
+    (text: string) => {
+      try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+
+        
+        u.rate = 0.95;
+        u.pitch = 1.05;
+        u.lang = "en-IN"; 
+
+ 
+        const all = window.speechSynthesis.getVoices();
+        let voice: SpeechSynthesisVoice | undefined =
+          (selectedVoiceName && all.find((v) => v.name === selectedVoiceName)) ||
+          all.find((v) => v.lang === "en-IN") ||
+          all.find((v) => v.name.toLowerCase().includes("india")) ||
+          all.find((v) => v.name.toLowerCase().includes("google") && v.lang.startsWith("en")) ||
+          all.find((v) => v.lang.startsWith("en")) ||
+          all[0];
+
+        if (voice) u.voice = voice;
+
+       
+
+        window.speechSynthesis.speak(u);
+      } catch {}
+    },
+    [selectedVoiceName]
+  );
 
   useEffect(() => {
     const run = async () => {
@@ -103,7 +161,6 @@ const VoiceAssistantPage = () => {
     } catch {}
   };
 
- 
   const goToFeedback = () => {
     stopAll();
     const context = {
@@ -117,7 +174,7 @@ const VoiceAssistantPage = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#003C3C] via-[#00796B] to-[#00BFA6] text-white relative overflow-hidden">
-
+      {/* Header */}
       <div className="absolute top-6 flex items-center justify-between w-[90%] max-w-2xl bg-white/10 backdrop-blur-lg px-6 py-4 rounded-2xl shadow-md">
         <div>
           <h1 className="text-lg font-semibold">Rental Housing Tribunal Voice Assistant</h1>
@@ -125,41 +182,50 @@ const VoiceAssistantPage = () => {
             {listening ? "Speak naturally, I'm listening..." : "Press to start speaking"}
           </p>
         </div>
-        <button
-          onClick={goToFeedback}
-          className="text-white/70 hover:text-white text-xl font-bold"
-          aria-label="Close"
-        >
+        <button onClick={goToFeedback} className="text-white/70 hover:text-white text-xl font-bold" aria-label="Close">
           ✕
         </button>
       </div>
 
-
+    
       <div className="flex flex-col items-center justify-center mt-20">
-        <div className={`w-56 h-56 rounded-full flex items-center justify-center transition-all duration-500 ${
-          listening ? "bg-teal-400/30 animate-pulse shadow-[0_0_60px_10px_rgba(20,184,166,0.5)]" : "bg-white/10 shadow-inner"
-        }`}>
-          <div className={`w-24 h-24 rounded-full bg-gradient-to-tr from-teal-300 to-teal-600 shadow-2xl transition-all duration-500 ${
-            listening ? "scale-110 animate-pulse" : "scale-100"
-          }`} />
+        <div
+          className={`w-56 h-56 rounded-full flex items-center justify-center transition-all duration-500 ${
+            listening
+              ? "bg-teal-400/30 animate-pulse shadow-[0_0_60px_10px_rgba(20,184,166,0.5)]"
+              : "bg-white/10 shadow-inner"
+          }`}
+        >
+          <div
+            className={`w-24 h-24 rounded-full bg-gradient-to-tr from-teal-300 to-teal-600 shadow-2xl transition-all duration-500 ${
+              listening ? "scale-110 animate-pulse" : "scale-100"
+            }`}
+          />
         </div>
 
+      
         <div className="mt-8 text-center">
           {supported ? (
-            listening ? <p className="text-teal-100 text-lg">🎤 Listening...</p>
-            : loading ? <p className="text-teal-100 text-lg">🤔 Thinking...</p>
-            : <p className="text-teal-100 text-lg">Tap below and speak naturally</p>
+            listening ? (
+              <p className="text-teal-100 text-lg">🎤 Listening...</p>
+            ) : loading ? (
+              <p className="text-teal-100 text-lg">🤔 Thinking...</p>
+            ) : (
+              <p className="text-teal-100 text-lg">Tap below and speak naturally</p>
+            )
           ) : (
             <p className="text-red-300">Speech recognition not supported on this browser.</p>
           )}
         </div>
 
+      
         <button
           onClick={startListening}
           disabled={!supported || listening}
           className={`mt-8 px-8 py-4 text-lg font-semibold rounded-full shadow-lg transition-transform ${
-            listening ? "bg-emerald-400 text-white opacity-70 cursor-not-allowed"
-                      : "bg-gradient-to-tr from-teal-600 to-teal-500 text-white hover:scale-[1.05]"
+            listening
+              ? "bg-emerald-400 text-white opacity-70 cursor-not-allowed"
+              : "bg-gradient-to-tr from-teal-600 to-teal-500 text-white hover:scale-[1.05]"
           }`}
         >
           {listening ? "Listening..." : "🎙️ Start Talking"}
@@ -167,6 +233,7 @@ const VoiceAssistantPage = () => {
 
         <div className="mt-4 text-sm text-white/80">💡 Tip: Speak clearly and naturally</div>
       </div>
+
 
       <div className="absolute bottom-6 text-xs text-white/70">
         ⚡ Powered by <span className="text-white font-semibold">Nathan Digital AI</span>
